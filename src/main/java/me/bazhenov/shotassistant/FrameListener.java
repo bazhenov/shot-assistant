@@ -5,5 +5,5 @@ import org.opencv.core.Point;
 
 public interface FrameListener {
 
-	void onFrame(Mat mat, Mat background, Mat frame, Point point);
+	void onFrame(Mat mat, Mat background, Mat frame, FrameFeatures point, boolean shots);
 }
