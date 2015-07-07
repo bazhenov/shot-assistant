@@ -55,7 +55,6 @@ public class FrameProcessingLoop {
 		int lastRebalancingFrameNo = 0;
 		while (videoCapture.read(frame)) {
 			frameNo++;
-			System.out.println("Frame #" + (frameNo++));
 			//warpPerspective(frame, frame, transformation, new Size(width, height));
 			cvtColor(frame, frame, Imgproc.COLOR_RGB2GRAY);
 			//normalize(frame, frame, 10, 245, NORM_MINMAX);

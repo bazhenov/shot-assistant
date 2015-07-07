@@ -1,32 +1,42 @@
 package me.bazhenov.shotassistant;
 
-import org.opencv.core.Core;
-import org.opencv.core.Mat;
-import org.opencv.core.Point;
-import org.opencv.core.Scalar;
+import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static java.awt.Color.green;
-import static java.awt.Color.white;
-import static java.util.Arrays.asList;
 import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
 import static me.bazhenov.shotassistant.VisualizingListener.toBufferedImage;
-import static org.opencv.imgproc.Imgproc.cvtColor;
+import static org.opencv.imgproc.Imgproc.*;
 
 public class VisualizingListener implements FrameListener {
 
+	private static final int TARGET_SIZE = 240;
 	private JFrame jframe = null;
-	private OpenCvVideoComponent currentFrame;
+	private MainFrameComponent currentFrameComponent;
+	private OpenCvVideoComponent targetFrameComponent;
 	private Mat privateFrame = new Mat();
-	LinkedList<Point> points = new LinkedList<>();
+	private Mat targetFrame = new Mat();
+	LinkedList<org.opencv.core.Point> points = new LinkedList<>();
 	private int shots = 0;
+	private volatile List<Point> perspectivePoints;
+
+	private Consumer<List<java.awt.Point>> perspectiveListener = p -> {
+		System.out.println(p);
+		this.perspectivePoints = p;
+	};
+
+	/*public VisualizingListener(Consumer<List<java.awt.Point>> perspectiveListener) {
+		this.perspectiveListener = requireNonNull(perspectiveListener);
+	}*/
 
 	@Override
 	public void onFrame(Mat mat, Mat background, Mat frame, FrameFeatures features, boolean shotDetected) {
@@ -38,12 +48,15 @@ public class VisualizingListener implements FrameListener {
 
 			jframe.setDefaultCloseOperation(EXIT_ON_CLOSE);
 
-			currentFrame = new OpenCvVideoComponent();
-			//jframe.add(currentFrame);
-			PerspectiveComponent comp = new PerspectiveComponent(currentFrame);
+			currentFrameComponent = new MainFrameComponent();
+			targetFrameComponent = new TargetFrameComponent();
+			PerspectiveComponent comp = new PerspectiveComponent(currentFrameComponent, perspectiveListener);
 			comp.setSize(new Dimension(width, height));
+			targetFrameComponent.setSize(new Dimension(TARGET_SIZE, TARGET_SIZE));
+			targetFrameComponent.setLocation(width, 0);
+			jframe.add(targetFrameComponent);
 			jframe.add(comp);
-			jframe.setSize(new Dimension(width, height));
+			jframe.setSize(new Dimension(width + TARGET_SIZE, height));
 			jframe.setVisible(true);
 		}
 
@@ -52,13 +65,29 @@ public class VisualizingListener implements FrameListener {
 
 		cvtColor(frame, privateFrame, Imgproc.COLOR_GRAY2BGR);
 
-		Point point = features.getCentroid().orElse(null);
+		MatOfPoint2f destination = new MatOfPoint2f(
+			new org.opencv.core.Point(0, 0),
+			new org.opencv.core.Point(TARGET_SIZE, 0),
+			new org.opencv.core.Point(TARGET_SIZE, TARGET_SIZE),
+			new org.opencv.core.Point(0, TARGET_SIZE));
+
+		MatOfPoint2f source = new MatOfPoint2f(
+			toOpenCvPoint(perspectivePoints.get(0)),
+			toOpenCvPoint(perspectivePoints.get(1)),
+			toOpenCvPoint(perspectivePoints.get(2)),
+			toOpenCvPoint(perspectivePoints.get(3)));
+
+		Mat transformation = getPerspectiveTransform(source, destination);
+
+		warpPerspective(frame, targetFrame, transformation, new Size(TARGET_SIZE, TARGET_SIZE));
+
+		org.opencv.core.Point point = features.getCentroid().orElse(null);
 		if (point != null && shotDetected) {
 			points.add(point);
 			while (points.size() > 5)
 				points.removeFirst();
 		}
-		for (Point p : points) {
+		for (org.opencv.core.Point p : points) {
 			Core.circle(privateFrame, p, 7, new Scalar(0, 0, 255), 2);
 		}
 
@@ -68,8 +97,13 @@ public class VisualizingListener implements FrameListener {
 		/*g.drawImage(toBufferedImage(privateFrame), 0, 0, null, null);
 		g.drawImage(toBufferedImage(background), width, 0, null, null);
 		g.drawImage(toBufferedImage(mat), 0, height, null, null);*/
-		currentFrame.update(privateFrame, features);
+		currentFrameComponent.update(privateFrame, features);
+		targetFrameComponent.update(targetFrame);
 		jframe.repaint();
+	}
+
+	private static org.opencv.core.Point toOpenCvPoint(Point p) {
+		return new org.opencv.core.Point(p.getX(), p.getY());
 	}
 
 	public static BufferedImage toBufferedImage(Mat m) {
@@ -87,69 +121,3 @@ public class VisualizingListener implements FrameListener {
 	}
 }
 
-class OpenCvVideoComponent extends Component {
-
-	private volatile BufferedImage image;
-	private volatile Dimension dimension;
-	private volatile FrameFeatures f;
-
-	public void update(Mat i, FrameFeatures f) {
-		image = toBufferedImage(i);
-		if (dimension == null || (dimension.getWidth() != i.width() || dimension.getHeight() != i.height()))
-			dimension = new Dimension(i.width(), i.height());
-		this.f = f;
-	}
-
-	@Override
-	public Dimension getSize() {
-		return dimension;
-	}
-
-	@Override
-	public void paint(Graphics g) {
-		super.paint(g);
-		if (image != null) {
-			g.drawImage(image, 0, 0, null, null);
-			g.setColor(green);
-			g.setFont(getFont().deriveFont(10.0f));
-			g.drawString("FNo: " + f.getFrameNo(), 10, 20);
-			g.drawString(" CA: " + f.getCoveringArea(), 10, 35);
-			g.drawString("NZP: " + f.getNonZeroPixels(), 10, 50);
-		}
-	}
-}
-
-class PerspectiveComponent extends Container {
-
-	private final Component delegate;
-
-	PerspectiveComponent(Component delegate) {
-		this.delegate = delegate;
-		add(delegate);
-	}
-
-	@Override
-	public Dimension getSize() {
-		return delegate.getSize();
-	}
-
-	@Override
-	public void paint(Graphics g) {
-		super.paint(g);
-		delegate.paint(g);
-		g.setColor(white);
-
-		Point p1 = new Point(10, 20);
-		Point p2 = new Point(310, 25);
-		Point p3 = new Point(310, 150);
-		Point p4 = new Point(32, 210);
-
-		List<Point> pts = asList(p1, p2, p3, p4);
-		pts.forEach(p -> g.drawRect((int) p.x, (int) p.y, 10, 10));
-
-		for (int i = 0; i < pts.size() - 1; i++) {
-			List<Point> pLine = pts.subList(i, i + 2);
-			g.drawLine((int) pLine.get(0).x + 5, (int) pLine.get(0).y + 5, (int) pLine.get(1).x + 5, (int) pLine.get(1).y + 5);
-		}
-	}
-}
