@@ -10,17 +10,15 @@ import static me.bazhenov.shotassistant.VisualizingListener.toBufferedImage;
 public class OpenCvVideoComponent extends Component {
 
 	private volatile BufferedImage image;
-	private volatile Dimension dimension;
 
 	public void update(Mat i) {
 		image = toBufferedImage(i);
-		if (dimension == null || (dimension.getWidth() != i.width() || dimension.getHeight() != i.height()))
-			dimension = new Dimension(i.width(), i.height());
-	}
-
-	@Override
-	public Dimension getSize() {
-		return dimension;
+		if ((getWidth() != i.width() || getHeight() != i.height())) {
+			Dimension dimension = new Dimension(i.width(), i.height());
+			setSize(dimension);
+			setPreferredSize(dimension);
+			setMinimumSize(dimension);
+		}
 	}
 
 	@Override

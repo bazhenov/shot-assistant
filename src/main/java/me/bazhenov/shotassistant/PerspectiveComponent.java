@@ -11,18 +11,15 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.awt.Color.white;
 import static java.lang.Math.abs;
 import static java.util.Arrays.asList;
-import static java.util.Objects.requireNonNull;
 
 public class PerspectiveComponent extends Container {
 
 	private static final int HALF_WIDTH = 5;
 	private final Component delegate;
-	private final Consumer<List<Point>> listener;
 	private List<Point> points;
-	private int activePointIdx = 0;
+	private int activePointIdx = -1;
 
 	public PerspectiveComponent(Component delegate, Consumer<List<Point>> listener) {
-		this.listener = requireNonNull(listener);
 		this.points = asList(new Point(10, 20), new Point(310, 25), new Point(310, 150), new Point(32, 210));
 		listener.accept(points);
 
@@ -81,6 +78,16 @@ public class PerspectiveComponent extends Container {
 	@Override
 	public Dimension getSize() {
 		return delegate.getSize();
+	}
+
+	@Override
+	public Dimension getMinimumSize() {
+		return delegate.getMinimumSize();
+	}
+
+	@Override
+	public Dimension getPreferredSize() {
+		return delegate.getPreferredSize();
 	}
 
 	@Override
