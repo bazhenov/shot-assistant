@@ -17,15 +17,17 @@ public class OpenCV {
 	public static void main(String[] args) throws IOException {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 		VideoCapture c = new VideoCapture(0);
-		c.set(CV_CAP_PROP_FRAME_WIDTH, 320);
-		c.set(CV_CAP_PROP_FRAME_HEIGHT, 240);
-//		VideoCapture c = new VideoCapture("./laser3.mov");
+		/*c.set(CV_CAP_PROP_FRAME_WIDTH, 320);
+		c.set(CV_CAP_PROP_FRAME_HEIGHT, 240);*/
+		c.set(CV_CAP_PROP_FRAME_WIDTH, 1024);
+		c.set(CV_CAP_PROP_FRAME_HEIGHT, 768);
+		//VideoCapture c = new VideoCapture("./laser3.mov");
 
 		FrameProcessingLoop loop = new FrameProcessingLoop(c);
 		loop.addFrameListener(new VisualizingListener());
-		loop.setSlowDownForFrameRate(17);
+		//loop.setSlowDownForFrameRate(17);
 		loop.setSensitivity(MEDIUM);
-		//loop.run(new PrintShotListener());
-		loop.run(new AnnounceShotListener());
+		loop.run(new PrintShotListener());
+		//loop.run(new AnnounceShotListener());
 	}
 }
