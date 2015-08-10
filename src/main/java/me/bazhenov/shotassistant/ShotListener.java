@@ -1,6 +1,8 @@
 package me.bazhenov.shotassistant;
 
-public interface ShotListener {
+import java.util.Optional;
 
-	void onShot(int level);
+public interface ShotListener<T> {
+
+	void onShot(Optional<T> level);
 }

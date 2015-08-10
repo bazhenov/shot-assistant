@@ -1,33 +1,53 @@
 package me.bazhenov.shotassistant;
 
+import me.bazhenov.shotassistant.drills.Drill;
+import me.bazhenov.shotassistant.drills.FirstShotDrill;
+import me.bazhenov.shotassistant.target.IpscClassicalTarget;
 import org.opencv.core.Core;
-import org.opencv.highgui.Highgui;
 import org.opencv.highgui.VideoCapture;
 
+import javax.swing.*;
+import java.awt.*;
 import java.io.IOException;
 
-import static me.bazhenov.shotassistant.Sensitivity.HIGH;
-import static me.bazhenov.shotassistant.Sensitivity.LOW;
+import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
 import static me.bazhenov.shotassistant.Sensitivity.MEDIUM;
-import static org.opencv.highgui.Highgui.CV_CAP_PROP_FRAME_HEIGHT;
-import static org.opencv.highgui.Highgui.CV_CAP_PROP_FRAME_WIDTH;
 
 public class OpenCV {
 
 	public static void main(String[] args) throws IOException {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-		VideoCapture c = new VideoCapture(0);
-		/*c.set(CV_CAP_PROP_FRAME_WIDTH, 320);
-		c.set(CV_CAP_PROP_FRAME_HEIGHT, 240);*/
-		c.set(CV_CAP_PROP_FRAME_WIDTH, 1024);
-		c.set(CV_CAP_PROP_FRAME_HEIGHT, 768);
-		//VideoCapture c = new VideoCapture("./laser3.mov");
+		IpscClassicalTarget target = new IpscClassicalTarget();
 
-		FrameProcessingLoop loop = new FrameProcessingLoop(c);
-		loop.addFrameListener(new VisualizingListener());
+		int width = 640;
+		int height = 480;
+		/*VideoCapture c = new VideoCapture(0);
+		c.set(CV_CAP_PROP_FRAME_WIDTH, width);
+		c.set(CV_CAP_PROP_FRAME_HEIGHT, height);*/
+		VideoCapture c = new VideoCapture("./examples/laser5.mov");
+
+		FrameProcessingLoop loop = new FrameProcessingLoop(c, target);
+
+		TargetFrameComponent targetFrameComponent = new TargetFrameComponent(target);
+		MainFrameComponent currentFrameComponent = new MainFrameComponent();
+		currentFrameComponent.setPreferredSize(new Dimension(width, height));
+		PerspectiveComponent perspectiveComponent = new PerspectiveComponent(currentFrameComponent, loop::setPerspective);
+
+		JFrame jframe = new JFrame();
+
+		Drill drill = new FirstShotDrill();
+
+		jframe.setDefaultCloseOperation(EXIT_ON_CLOSE);
+		jframe.add(targetFrameComponent);
+		jframe.add(perspectiveComponent);
+
+		jframe.setLayout(new FlowLayout());
+		jframe.pack();
+		jframe.setVisible(true);
+
+		loop.addFrameListener(new VisualizingListener(jframe, currentFrameComponent, targetFrameComponent));
 		//loop.setSlowDownForFrameRate(17);
 		loop.setSensitivity(MEDIUM);
-		loop.run(new PrintShotListener());
-		//loop.run(new AnnounceShotListener());
+		loop.run(new AnnounceShotListener());
 	}
 }

@@ -15,6 +15,7 @@ public class TargetFrameComponent extends OpenCvVideoComponent {
 
 	public TargetFrameComponent(Target target) {
 		this.target = requireNonNull(target);
+		setPreferredSize(target.getSize());
 	}
 
 	@Override

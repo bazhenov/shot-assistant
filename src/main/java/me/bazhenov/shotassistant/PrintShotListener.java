@@ -1,9 +1,13 @@
 package me.bazhenov.shotassistant;
 
-public class PrintShotListener implements ShotListener {
+import me.bazhenov.shotassistant.target.IpscScore;
+
+import java.util.Optional;
+
+public class PrintShotListener implements ShotListener<IpscScore> {
 
 	@Override
-	public void onShot(int level) {
-		System.out.print("Shot registered: " + level + " ");
+	public void onShot(Optional<IpscScore> level) {
+		System.out.println("Shot registered: " + level);
 	}
 }

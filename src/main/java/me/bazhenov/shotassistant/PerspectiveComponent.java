@@ -65,6 +65,7 @@ public class PerspectiveComponent extends Container {
 			public void mouseDragged(MouseEvent e) {
 				if (activePointIdx >= 0) {
 					points.get(activePointIdx).setLocation(e.getX(), e.getY());
+					listener.accept(points);
 					repaint();
 				}
 			}
