@@ -15,8 +15,12 @@ import static me.bazhenov.shotassistant.Sensitivity.MEDIUM;
 
 public class OpenCV {
 
-	public static void main(String[] args) throws IOException {
+	public static void loadOpenCv() {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+	}
+
+	public static void main(String[] args) throws IOException {
+		loadOpenCv();
 		IpscClassicalTarget target = new IpscClassicalTarget();
 
 		int width = 640;

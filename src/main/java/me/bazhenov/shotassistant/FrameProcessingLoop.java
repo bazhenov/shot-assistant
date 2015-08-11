@@ -114,7 +114,7 @@ public class FrameProcessingLoop {
 			FrameFeatures features = f.extract(frameResult);
 
 			// Shot detecting
-			Point point = features.getCentroid().orElse(null);
+			Point point = null;//features.getCentroid().orElse(null);
 			Optional<IpscScore> score = Optional.empty();
 
 
@@ -197,7 +197,7 @@ public class FrameProcessingLoop {
 				point = rect.center;
 			}
 			int nonZero = countNonZero(frame);
-			return new FrameFeatures(frameNo++, frame.size(), nonZero, (int) area, Optional.ofNullable(point));
+			return new FrameFeatures(frameNo++, frame.size(), nonZero, (int) area, Optional.ofNullable(null));
 		}
 	}
 }

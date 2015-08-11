@@ -6,9 +6,9 @@ import java.util.function.Consumer;
 
 public interface ProcessingListener {
 
-	public void onStage(int i, String name, Mat processingResult);
+	public void onStage(String name, Mat processingResult);
 
 	void onFrame(Mat mat, int size);
 
-	void onFrameComplete();
+	void onFrameComplete(FrameFeatures features);
 }

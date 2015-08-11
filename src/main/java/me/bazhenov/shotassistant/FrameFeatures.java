@@ -1,8 +1,8 @@
 package me.bazhenov.shotassistant;
 
-import org.opencv.core.Point;
 import org.opencv.core.Size;
 
+import java.awt.*;
 import java.util.Optional;
 
 public final class FrameFeatures {

@@ -1,12 +1,15 @@
 package me.bazhenov.shotassistant;
 
 import org.opencv.core.Mat;
+import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.util.List;
 import java.util.function.Consumer;
 
-import static org.opencv.core.Core.subtract;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.opencv.core.Core.*;
 import static org.opencv.imgproc.Imgproc.*;
 
 public class ImageOperations {
@@ -15,6 +18,14 @@ public class ImageOperations {
 	public static Consumer<Mat> grayscale() {
 		return f -> {
 			cvtColor(f, f, Imgproc.COLOR_RGB2GRAY);
+		};
+	}
+
+	public static Consumer<Mat> takeChannel(int channelNo) {
+		List<Mat> channels = newArrayList(new Mat(), new Mat(), new Mat());
+		return f -> {
+			split(f, channels);
+			channels.get(channelNo).copyTo(f);
 		};
 	}
 
@@ -43,14 +54,17 @@ public class ImageOperations {
 	public static class DifferenceWithBackground implements Consumer<Mat> {
 
 		private Mat background;
+		private Mat backgroundReversed = new Mat();
 
 		@Override
 		public void accept(Mat f) {
 			if (background == null) {
 				background = new Mat();
 				f.copyTo(background);
+				absdiff(background, new Scalar(256), backgroundReversed);
 			}
 			subtract(f, background, f);
+			divide(f, backgroundReversed, f, 255);
 		}
 	}
 }

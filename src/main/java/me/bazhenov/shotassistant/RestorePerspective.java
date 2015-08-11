@@ -19,20 +19,21 @@ public class RestorePerspective implements Function<Mat, Mat> {
 	private final Mat perspectiveTransform;
 	private final Mat targetFrame = new Mat();
 	private final Size targetSize;
+	private final double scaleRatio;
 
 	public RestorePerspective(Dimension size, List<Point> points) {
 		this.size = size;
 		this.points = points;
 
-		double targetRatio = Math.min(300d / size.getWidth(), 300d / size.getHeight());
+		scaleRatio = Math.min(300d / size.getWidth(), 300d / size.getHeight());
 
 		MatOfPoint2f destination = new MatOfPoint2f(
 			new org.opencv.core.Point(0, 0),
-			new org.opencv.core.Point(size.getWidth() * targetRatio, 0),
-			new org.opencv.core.Point(size.getWidth() * targetRatio, size.getHeight() * targetRatio),
-			new org.opencv.core.Point(0, size.getHeight() * targetRatio));
+			new org.opencv.core.Point(size.getWidth() * scaleRatio, 0),
+			new org.opencv.core.Point(size.getWidth() * scaleRatio, size.getHeight() * scaleRatio),
+			new org.opencv.core.Point(0, size.getHeight() * scaleRatio));
 
-		targetSize = new Size(size.getWidth() * targetRatio, size.getHeight() * targetRatio);
+		targetSize = new Size(size.getWidth() * scaleRatio, size.getHeight() * scaleRatio);
 
 		MatOfPoint2f source = new MatOfPoint2f(
 			toOpenCvPoint(points.get(0)),
@@ -41,6 +42,10 @@ public class RestorePerspective implements Function<Mat, Mat> {
 			toOpenCvPoint(points.get(3)));
 
 		perspectiveTransform = getPerspectiveTransform(source, destination);
+	}
+
+	public double getScaleRatio() {
+		return scaleRatio;
 	}
 
 	@Override

@@ -26,6 +26,7 @@ import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptySet;
+import static me.bazhenov.shotassistant.ProcessingChain.createProcessingChain;
 import static me.bazhenov.shotassistant.ShotDetectingAutomata.State.*;
 import static me.bazhenov.shotassistant.VisualizingListener.toBufferedImage;
 
@@ -36,13 +37,14 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 
 	private final File location;
 	private final boolean shotOnly;
-	int frameNo = 0;
+	private int frameNo = 0;
 	private Set<Integer> requiredFrames = emptySet();
 
 	private BufferedImage currentImage;
 	private int currentY = 0;
 	private int currentX = 0;
 	private int currentLineMaxHeight = 0;
+	private Graphics2D g;
 
 	public ExportDiagnosticFrames(File location, boolean shotOnly) {
 		this.location = location;
@@ -53,25 +55,23 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 
 	public static void main(String[] args) throws IOException {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-		String fileName = "./examples/laser5.mov";
+		String fileName = "./examples/laser7.mov";
 		List<String> lines = Files.readAllLines(new File(fileName + ".info").toPath(), UTF_8);
 		VideoCapture c = new VideoCapture(fileName);
 
-		ProcessingChain chain = new ProcessingChain();
 		List<Point> perspectivePoints = parsePerspectivePoints(lines.get(1));
+		IpscClassicalTarget target = new IpscClassicalTarget();
 
-		chain.addStage("perspective", new RestorePerspective(new IpscClassicalTarget().getSize(), perspectivePoints));
-		chain.addStage("gray", ImageOperations.grayscale());
-		chain.addStage("blur", ImageOperations.medianBlur(1));
-		chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
-		chain.addStage("threshold", ImageOperations.threshold(30));
-		chain.addStage("erode", ImageOperations.erode(5));
+		ProcessingChain chain = createProcessingChain(perspectivePoints, target, s -> {
+		});
 
-		chain.setListener(new ExportDiagnosticFrames(new File("./export-result"), false));
-		VideoProcessor.run(c, chain);
+		ExportDiagnosticFrames listener = new ExportDiagnosticFrames(new File("./export-result"), false);
+		listener.setRequiredFrames(parseIntervals(lines.get(0)));
+		chain.setListener(listener);
+		chain.run(c);
 	}
 
-	private static List<Point> parsePerspectivePoints(String s) {
+	public static List<Point> parsePerspectivePoints(String s) {
 		List<Point> result = newArrayList();
 		for (String p : s.split(";")) {
 			String[] parts = p.split(",", 2);
@@ -99,15 +99,15 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 
 	@Override
 	public void onFrame(Mat mat, int stagesCount) {
+		frameNo++;
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
 		currentImage = new BufferedImage(1280, 2000, TYPE_3BYTE_BGR);
+		g = (Graphics2D) currentImage.getGraphics();
 		currentY = 0;
 		currentX = 0;
 		currentLineMaxHeight = 0;
 		drawStage(mat, "Original frame");
-
-		frameNo++;
 	}
 
 	private void drawStage(Mat mat, String name) {
@@ -116,8 +116,7 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 			currentX = 0;
 			currentLineMaxHeight = 0;
 		}
-		Graphics2D g = (Graphics2D) currentImage.getGraphics();
-		g.translate(currentX, currentY);
+		g.setTransform(getTranslateInstance(currentX, currentY));
 		g.drawImage(toBufferedImage(mat), 0, 0, null, null);
 
 		g.setFont(g.getFont().deriveFont(16f));
@@ -130,7 +129,7 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 	}
 
 	@Override
-	public void onStage(int i, String name, Mat processingResult) {
+	public void onStage(String name, Mat processingResult) {
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
 
@@ -138,9 +137,17 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 	}
 
 	@Override
-	public void onFrameComplete() {
+	public void onFrameComplete(FrameFeatures features) {
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
+
+		Optional<Point> p = features.getCentroid();
+		if (p.isPresent()) {
+			g.setColor(red);
+			g.fillRect(10, 30, 10, 10);
+			g.drawOval(p.get().x - 10, p.get().y - 10, 20, 20);
+		}
+
 		try {
 			int width = currentImage.getWidth();
 			int height = currentY + currentLineMaxHeight;
@@ -177,10 +184,14 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 			g.setColor(GREEN);
 		g.fillRect(10, 65, 10, 10);
 
-		Optional<org.opencv.core.Point> point = features.getCentroid();
+		Optional<Point> point = features.getCentroid();
 		if (point.isPresent()) {
 			g.setColor(RED);
-			g.drawArc((int) point.get().x - 6, (int) point.get().y - 6, 12, 12, 0, 360);
+			g.drawArc(point.get().x - 6, point.get().y - 6, 12, 12, 0, 360);
 		}
+	}
+
+	public void setRequiredFrames(Set<Integer> requiredFrames) {
+		this.requiredFrames = requiredFrames;
 	}
 }
