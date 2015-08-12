@@ -18,9 +18,6 @@ import static java.lang.Math.round;
 import static org.opencv.core.Core.countNonZero;
 import static org.opencv.core.Core.findNonZero;
 import static org.opencv.core.CvType.CV_32FC2;
-import static org.opencv.core.CvType.CV_32FC3;
-import static org.opencv.highgui.Highgui.CV_CAP_PROP_FRAME_HEIGHT;
-import static org.opencv.highgui.Highgui.CV_CAP_PROP_FRAME_WIDTH;
 import static org.opencv.imgproc.Imgproc.minAreaRect;
 
 public class ProcessingChain implements Consumer<Mat> {
@@ -30,9 +27,14 @@ public class ProcessingChain implements Consumer<Mat> {
 	private ProcessingListener listener;
 	private int frameNo = 0;
 	private static double scaleRatio;
+	private Consumer<Mat> targetFrameListener;
 
 	public ProcessingChain(Consumer<Optional<Point>> pointConsumer) {
 		this.pointConsumer = pointConsumer;
+	}
+
+	public void setTargetFrameListener(Consumer<Mat> targetFrameListener) {
+		this.targetFrameListener = targetFrameListener;
 	}
 
 	static ProcessingChain createProcessingChain(List<Point> perspectivePoints, IpscClassicalTarget target,
@@ -50,11 +52,7 @@ public class ProcessingChain implements Consumer<Mat> {
 	}
 
 	public void run(VideoCapture videoCapture) {
-		int width = (int) videoCapture.get(CV_CAP_PROP_FRAME_WIDTH);
-		int height = (int) videoCapture.get(CV_CAP_PROP_FRAME_HEIGHT);
-
-		Mat frame = new Mat(width, height, CV_32FC3);
-
+		Mat frame = new Mat();
 		while (videoCapture.read(frame)) {
 			accept(frame);
 		}
@@ -86,6 +84,9 @@ public class ProcessingChain implements Consumer<Mat> {
 			mat = stage.get().apply(mat);
 			if (listener != null) {
 				listener.onStage(stage.getName(), mat);
+			}
+			if (targetFrameListener != null && "perspective".equals(stage.getName())) {
+				targetFrameListener.accept(mat);
 			}
 		}
 

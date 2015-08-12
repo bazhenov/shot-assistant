@@ -4,10 +4,11 @@ import org.opencv.core.Mat;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.function.Consumer;
 
 import static me.bazhenov.shotassistant.VisualizingListener.toBufferedImage;
 
-public class OpenCvVideoComponent extends Component {
+public class OpenCvVideoComponent extends Component implements Consumer<Mat> {
 
 	private volatile BufferedImage image;
 
@@ -19,6 +20,12 @@ public class OpenCvVideoComponent extends Component {
 			setPreferredSize(dimension);
 			setMinimumSize(dimension);
 		}
+		repaint();
+	}
+
+	@Override
+	public void accept(Mat mat) {
+		update(mat);
 	}
 
 	@Override

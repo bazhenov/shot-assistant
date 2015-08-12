@@ -3,17 +3,14 @@ package me.bazhenov.shotassistant;
 import me.bazhenov.shotassistant.target.IpscScore;
 
 import java.io.IOException;
-import java.util.Optional;
+import java.util.function.Consumer;
 
-public class AnnounceShotListener implements ShotListener<IpscScore> {
-
-	private int shot = 0;
+public class AnnounceShotListener implements Consumer<IpscScore> {
 
 	@Override
-	public void onShot(Optional<IpscScore> level) {
+	public void accept(IpscScore ipscScore) {
 		try {
-			shot++;
-			Runtime.getRuntime().exec("say -r 220 '" + level.map(IpscScore::toString).orElse("miss") + "'");
+			Runtime.getRuntime().exec("say -r 220 '" + ipscScore.toString() + "'");
 		} catch (IOException e) {
 			e.printStackTrace(System.err);
 			throw new RuntimeException(e);
