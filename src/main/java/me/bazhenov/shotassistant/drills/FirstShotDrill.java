@@ -2,23 +2,34 @@ package me.bazhenov.shotassistant.drills;
 
 import me.bazhenov.shotassistant.target.IpscScore;
 
-import java.util.Optional;
+import java.io.IOException;
 
 public class FirstShotDrill implements Drill {
 
-	private long startTime;
-	private long finishTime;
+	private volatile long startTime;
+	private volatile long finishTime;
 
+	@Override
 	public void start() {
 		startTime = System.currentTimeMillis();
 	}
 
-	public Status onShot(Optional<IpscScore> shot) {
-		if (shot.isPresent()) {
-			finishTime = System.currentTimeMillis();
-			return Status.Finished;
+	@Override
+	public Status onShot(IpscScore shot) {
+		if (startTime <= 0)
+			return Status.Continue;
+		/*if (finishTime > 0)
+			return Status.Continue;*/
+		finishTime = System.currentTimeMillis();
+		double time = (finishTime - startTime) / 1000.0;
+		String tm = String.format("%s in %.1f", shot, time);
+		try {
+			Runtime.getRuntime().exec("say -r 220 '" + tm + "'");
+		} catch (IOException e) {
+			e.printStackTrace(System.err);
+			throw new RuntimeException(e);
 		}
-		return Status.Continue;
+		return Status.Finished;
 	}
 
 	public long getDrillStatus() {

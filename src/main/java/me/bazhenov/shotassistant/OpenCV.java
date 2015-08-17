@@ -1,6 +1,8 @@
 package me.bazhenov.shotassistant;
 
+import me.bazhenov.shotassistant.drills.FirstShotDrill;
 import me.bazhenov.shotassistant.target.IpscClassicalTarget;
+import me.bazhenov.shotassistant.ui.StartDrillAction;
 import org.opencv.core.Core;
 import org.opencv.highgui.VideoCapture;
 
@@ -29,7 +31,9 @@ public class OpenCV {
 		VideoCapture c = new VideoCapture(fileName);
 		MovieInfo info = new MovieInfo(new File(fileName + ".info"));
 
-		ShotDetector shotDetector = new ShotDetector(target, new AnnounceShotListener());
+		FirstShotDrill drill = new FirstShotDrill();
+
+		ShotDetector shotDetector = new ShotDetector(target, drill::onShot);
 		TargetFrameComponent targetFrameComponent = new TargetFrameComponent(target);
 		ProcessingChain chain = createProcessingChain(info.getPerspectivePoints(), target, shotDetector);
 		chain.setTargetFrameListener(targetFrameComponent);
@@ -38,6 +42,9 @@ public class OpenCV {
 
 		jframe.setDefaultCloseOperation(EXIT_ON_CLOSE);
 		jframe.add(targetFrameComponent);
+
+		JButton startButton = new JButton(new StartDrillAction(drill));
+		jframe.add(startButton);
 
 		jframe.setLayout(new FlowLayout());
 		jframe.pack();
