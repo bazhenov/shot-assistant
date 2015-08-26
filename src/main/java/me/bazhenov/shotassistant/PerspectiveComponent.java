@@ -76,6 +76,10 @@ public class PerspectiveComponent extends Container {
 		});
 	}
 
+	public List<Point> getPoints() {
+		return points;
+	}
+
 	@Override
 	public Dimension getSize() {
 		return delegate.getSize();

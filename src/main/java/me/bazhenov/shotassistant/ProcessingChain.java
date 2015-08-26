@@ -8,8 +8,11 @@ import org.opencv.core.RotatedRect;
 import org.opencv.highgui.VideoCapture;
 
 import java.awt.*;
+import java.io.Closeable;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -20,7 +23,7 @@ import static org.opencv.core.Core.findNonZero;
 import static org.opencv.core.CvType.CV_32FC2;
 import static org.opencv.imgproc.Imgproc.minAreaRect;
 
-public class ProcessingChain implements Consumer<Mat> {
+public class ProcessingChain implements Consumer<Mat>, Closeable {
 
 	private final List<Named<Function<Mat, Mat>>> stages = newArrayList();
 	private final Consumer<Optional<Point>> pointConsumer;
@@ -28,6 +31,9 @@ public class ProcessingChain implements Consumer<Mat> {
 	private int frameNo = 0;
 	private static double scaleRatio;
 	private Consumer<Mat> targetFrameListener;
+	private RestorePerspective restorePerspective;
+	private Consumer<Mat> originalFrameListener;
+	private boolean isClosed = false;
 
 	public ProcessingChain(Consumer<Optional<Point>> pointConsumer) {
 		this.pointConsumer = pointConsumer;
@@ -37,12 +43,16 @@ public class ProcessingChain implements Consumer<Mat> {
 		this.targetFrameListener = targetFrameListener;
 	}
 
+	public void setOriginalFrameListener(Consumer<Mat> originalFrameListener) {
+		this.originalFrameListener = originalFrameListener;
+	}
+
 	static ProcessingChain createProcessingChain(List<Point> perspectivePoints, IpscClassicalTarget target,
 																							 Consumer<Optional<Point>> pointConsumer) {
 		ProcessingChain chain = new ProcessingChain(pointConsumer);
-		RestorePerspective restorePerspective = new RestorePerspective(target.getSize(), perspectivePoints);
-		scaleRatio = restorePerspective.getScaleRatio();
-		chain.addStage("perspective", restorePerspective);
+		chain.restorePerspective = new RestorePerspective(target.getSize(), perspectivePoints);
+		scaleRatio = chain.restorePerspective.getScaleRatio();
+		chain.addStage("perspective", chain.restorePerspective);
 		chain.addStage("gray", ImageOperations.grayscale());
 		chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
 		chain.addStage("blur", ImageOperations.medianBlur(5));
@@ -52,11 +62,27 @@ public class ProcessingChain implements Consumer<Mat> {
 	}
 
 	public void run(VideoCapture videoCapture) {
-		Mat frame = new Mat();
-		while (videoCapture.read(frame)) {
-			accept(frame);
+		try {
+			runAsync(videoCapture).get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException e) {
+			throw new RuntimeException(e);
 		}
 	}
+
+	public CompletableFuture<?> runAsync(VideoCapture videoCapture) {
+		CompletableFuture<?> result = new CompletableFuture<>();
+		new Thread(() -> {
+			Mat frame = new Mat();
+			while (videoCapture.read(frame) && !isClosed) {
+				accept(frame);
+			}
+			result.complete(null);
+		}).start();
+		return result;
+	}
+
 
 	public void addStage(String name, Consumer<Mat> stage) {
 		stages.add(new Named<>(name, i -> {
@@ -74,23 +100,25 @@ public class ProcessingChain implements Consumer<Mat> {
 	}
 
 	@Override
-	public void accept(Mat mat) {
+	public void accept(Mat frame) {
 		frameNo++;
 
 		if (listener != null) {
-			listener.onFrame(mat, stages.size());
+			listener.onFrame(frame, stages.size());
 		}
+		if (originalFrameListener != null)
+			originalFrameListener.accept(frame);
 		for (Named<Function<Mat, Mat>> stage : stages) {
-			mat = stage.get().apply(mat);
+			frame = stage.get().apply(frame);
 			if (listener != null) {
-				listener.onStage(stage.getName(), mat);
+				listener.onStage(stage.getName(), frame);
 			}
 			if (targetFrameListener != null && "perspective".equals(stage.getName())) {
-				targetFrameListener.accept(mat);
+				targetFrameListener.accept(frame);
 			}
 		}
 
-		FrameFeatures features = extractFeatures(frameNo, mat);
+		FrameFeatures features = extractFeatures(frameNo, frame);
 		if (listener != null) {
 			listener.onFrameComplete(features);
 		}
@@ -120,5 +148,14 @@ public class ProcessingChain implements Consumer<Mat> {
 		}
 		int nonZero = countNonZero(mat);
 		return new FrameFeatures(frameNo, mat.size(), nonZero, (int) area, Optional.ofNullable(point));
+	}
+
+	public void updatePerspective(List<Point> points) {
+		restorePerspective.updatePerspective(points);
+	}
+
+	@Override
+	public void close() {
+		isClosed = true;
 	}
 }
