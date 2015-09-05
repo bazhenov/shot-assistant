@@ -8,6 +8,8 @@ public interface Drill {
 
 	Status onShot(IpscScore shot);
 
+	void reset();
+
 	enum Status {
 		Finished, Continue
 	}

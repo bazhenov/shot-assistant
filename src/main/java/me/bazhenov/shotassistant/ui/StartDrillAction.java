@@ -37,9 +37,13 @@ public class StartDrillAction extends AbstractAction {
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
+		waitAndPlayStartBeeperSound(drill);
+	}
+
+	public static void waitAndPlayStartBeeperSound(Drill drill) {
 		new Thread(() -> {
 			try {
-				int seconds = (int) (Math.random() * 3) + 2;
+				int seconds = (int) (Math.random() * 3) + 1;
 				SECONDS.sleep(seconds);
 			} catch (InterruptedException e1) {
 				throw new RuntimeException(e1);

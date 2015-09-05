@@ -1,13 +1,10 @@
 package me.bazhenov.shotassistant;
 
 import me.bazhenov.shotassistant.target.IpscClassicalTarget;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.MatOfPoint2f;
-import org.opencv.core.RotatedRect;
+import org.opencv.core.*;
 import org.opencv.highgui.VideoCapture;
 
-import java.awt.*;
+import java.awt.Point;
 import java.io.Closeable;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +20,7 @@ import static org.opencv.core.Core.findNonZero;
 import static org.opencv.core.CvType.CV_32FC2;
 import static org.opencv.imgproc.Imgproc.minAreaRect;
 
-public class ProcessingChain implements Consumer<Mat>, Closeable {
+public class ProcessingChain implements Closeable {
 
 	private final List<Named<Function<Mat, Mat>>> stages = newArrayList();
 	private final Consumer<Optional<Point>> pointConsumer;
@@ -52,12 +49,12 @@ public class ProcessingChain implements Consumer<Mat>, Closeable {
 		ProcessingChain chain = new ProcessingChain(pointConsumer);
 		chain.restorePerspective = new RestorePerspective(target.getSize(), perspectivePoints);
 		scaleRatio = chain.restorePerspective.getScaleRatio();
-		chain.addStage("perspective", chain.restorePerspective);
+		//chain.addStage("perspective", chain.restorePerspective);
 		chain.addStage("gray", ImageOperations.grayscale());
-		chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
-		chain.addStage("blur", ImageOperations.medianBlur(5));
-		chain.addStage("threshold", ImageOperations.threshold(120));
-		chain.addStage("erode", ImageOperations.erode(3));
+		//chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
+		//chain.addStage("blur", ImageOperations.medianBlur(5));
+		//chain.addStage("threshold", ImageOperations.threshold(120));
+		//chain.addStage("erode", ImageOperations.erode(3));
 		return chain;
 	}
 
@@ -75,7 +72,16 @@ public class ProcessingChain implements Consumer<Mat>, Closeable {
 		CompletableFuture<?> result = new CompletableFuture<>();
 		new Thread(() -> {
 			Mat frame = new Mat();
+			TargetFinder finder = new TargetFinder();
+			Mat p = new Mat();
 			while (videoCapture.read(frame) && !isClosed) {
+				frame.copyTo(p);
+				Optional<org.opencv.core.Point[]> target = finder.find(p);
+				if (target.isPresent()) {
+					System.out.println("Yep");
+					MatOfPoint matOfPoint = new MatOfPoint(target.get());
+					Core.polylines(frame, newArrayList(matOfPoint), true, new Scalar(255), 3);
+				}
 				accept(frame);
 			}
 			result.complete(null);
@@ -99,7 +105,6 @@ public class ProcessingChain implements Consumer<Mat>, Closeable {
 		this.listener = listener;
 	}
 
-	@Override
 	public void accept(Mat frame) {
 		frameNo++;
 

@@ -41,9 +41,21 @@ public class ImageOperations {
 		};
 	}
 
+	public static Consumer<Mat> adaptiveThreshold() {
+		return f -> {
+			Imgproc.adaptiveThreshold(f, f, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 6);
+		};
+	}
+
 	public static Consumer<Mat> erode(int erode) {
 		return f -> {
 			Imgproc.erode(f, f, getStructuringElement(MORPH_ELLIPSE, new Size(erode, erode)));
+		};
+	}
+
+	public static Consumer<Mat> dilate(int dilate) {
+		return f -> {
+			Imgproc.dilate(f, f, getStructuringElement(MORPH_ELLIPSE, new Size(dilate, dilate)));
 		};
 	}
 

@@ -29,11 +29,12 @@ public class FirstShotDrill implements Drill {
 			e.printStackTrace(System.err);
 			throw new RuntimeException(e);
 		}
+		startTime = 0;
 		return Status.Finished;
 	}
 
-	public long getDrillStatus() {
-		return finishTime - startTime;
+	@Override
+	public void reset() {
+		startTime = 0;
 	}
-
 }

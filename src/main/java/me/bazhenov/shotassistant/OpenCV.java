@@ -1,5 +1,6 @@
 package me.bazhenov.shotassistant;
 
+import me.bazhenov.shotassistant.drills.Drill;
 import me.bazhenov.shotassistant.drills.FirstShotDrill;
 import me.bazhenov.shotassistant.target.IpscClassicalTarget;
 import me.bazhenov.shotassistant.ui.StartDrillAction;
@@ -9,8 +10,8 @@ import org.opencv.highgui.VideoCapture;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -30,20 +31,17 @@ public class OpenCV {
 		loadOpenCv();
 		IpscClassicalTarget target = new IpscClassicalTarget();
 
+		/*String fileName = "./examples/laser7.mov";
+		VideoCapture c = new VideoCapture(fileName);
+		MovieInfo info = new MovieInfo(new File(fileName + ".info"));
+		List<Point> perspectivePoints = info.getPerspectivePoints();
+		runDrill(target, c, perspectivePoints, new FirstShotDrill());*/
+
 		VideoCapture c = new VideoCapture(0);
 		c.set(CV_CAP_PROP_FRAME_WIDTH, 640);
 		c.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-		String fileName = "./examples/laser7.mov";
-		//VideoCapture c = new VideoCapture(fileName);
-		MovieInfo info = new MovieInfo(new File(fileName + ".info"));
-
-		List<Point> perspectivePoints = info.getPerspectivePoints();
-		choosePerspective(target, c, pts -> {
-			runDrill(target, c, pts);
-		});
-
-		//runDrill(target, c, perspectivePoints);
-
+		List<Point> points = newArrayList(new Point(0, 0), new Point(640, 0), new Point(640, 480), new Point(0, 480));
+		runDrill(target, c, points, new FirstShotDrill());
 	}
 
 	private static void choosePerspective(IpscClassicalTarget target, VideoCapture c,
@@ -84,21 +82,22 @@ public class OpenCV {
 		chain.run(c);
 	}
 
-	private static void runDrill(IpscClassicalTarget target, VideoCapture c, List<Point> perspectivePoints) {
-		FirstShotDrill drill = new FirstShotDrill();
-
+	private static void runDrill(IpscClassicalTarget target, VideoCapture c, List<Point> perspectivePoints, Drill drill) {
+		//DrillLifecycle lifecycle = new DrillLifecycle(drill);
 		ShotDetector shotDetector = new ShotDetector(target, drill::onShot);
-		TargetFrameComponent targetFrameComponent = new TargetFrameComponent(target);
 		ProcessingChain chain = createProcessingChain(perspectivePoints, target, shotDetector);
-		chain.setTargetFrameListener(targetFrameComponent);
+		//TargetFrameComponent targetFrameComponent = new TargetFrameComponent(target);
+		//chain.setTargetFrameListener(targetFrameComponent);
+
+		MainFrameComponent comp = new MainFrameComponent();
+		chain.setOriginalFrameListener(comp);
 
 		JFrame jframe = new JFrame();
 
 		jframe.setDefaultCloseOperation(EXIT_ON_CLOSE);
-		jframe.add(targetFrameComponent);
+		jframe.add(comp);
 
-		JButton startButton = new JButton(new StartDrillAction(drill));
-		jframe.add(startButton);
+		jframe.add(new JButton(new StartDrillAction(drill)));
 
 		jframe.setLayout(new FlowLayout());
 		jframe.pack();
