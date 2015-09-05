@@ -1,94 +1,53 @@
 package me.bazhenov.shotassistant;
 
 import me.bazhenov.shotassistant.target.IpscClassicalTarget;
-import org.opencv.core.*;
-import org.opencv.highgui.VideoCapture;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.RotatedRect;
 
-import java.awt.Point;
-import java.io.Closeable;
+import java.awt.*;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static java.lang.Math.round;
 import static org.opencv.core.Core.countNonZero;
 import static org.opencv.core.Core.findNonZero;
 import static org.opencv.core.CvType.CV_32FC2;
 import static org.opencv.imgproc.Imgproc.minAreaRect;
 
-public class ProcessingChain implements Closeable {
+public class ProcessingChain<T> {
 
 	private final List<Named<Function<Mat, Mat>>> stages = newArrayList();
-	private final Consumer<Optional<Point>> pointConsumer;
-	private ProcessingListener listener;
-	private int frameNo = 0;
-	private static double scaleRatio;
-	private Consumer<Mat> targetFrameListener;
+	private final Function<Mat, T> frameProcessor;
 	private RestorePerspective restorePerspective;
-	private Consumer<Mat> originalFrameListener;
-	private boolean isClosed = false;
 
-	public ProcessingChain(Consumer<Optional<Point>> pointConsumer) {
-		this.pointConsumer = pointConsumer;
-	}
-
-	public void setTargetFrameListener(Consumer<Mat> targetFrameListener) {
-		this.targetFrameListener = targetFrameListener;
-	}
-
-	public void setOriginalFrameListener(Consumer<Mat> originalFrameListener) {
-		this.originalFrameListener = originalFrameListener;
+	public ProcessingChain(Function<Mat, T> frameProcessor) {
+		this.frameProcessor = frameProcessor;
 	}
 
 	static ProcessingChain createProcessingChain(List<Point> perspectivePoints, IpscClassicalTarget target,
 																							 Consumer<Optional<Point>> pointConsumer) {
-		ProcessingChain chain = new ProcessingChain(pointConsumer);
-		chain.restorePerspective = new RestorePerspective(target.getSize(), perspectivePoints);
-		scaleRatio = chain.restorePerspective.getScaleRatio();
-		//chain.addStage("perspective", chain.restorePerspective);
+		AtomicInteger frameNo = new AtomicInteger();
+		RestorePerspective perspectiveComponent = new RestorePerspective(target.getSize(), perspectivePoints);
+		ProcessingChain<FrameFeatures> chain = new ProcessingChain<>(f -> {
+			FrameFeatures features = extractFeatures(frameNo.incrementAndGet(), f);
+			pointConsumer.accept(features.getCentroid().map(perspectiveComponent::scaleToTarget));
+			return features;
+		});
+		chain.restorePerspective = perspectiveComponent;
 		chain.addStage("gray", ImageOperations.grayscale());
-		//chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
-		//chain.addStage("blur", ImageOperations.medianBlur(5));
-		//chain.addStage("threshold", ImageOperations.threshold(120));
-		//chain.addStage("erode", ImageOperations.erode(3));
+		chain.addStage("perspective", chain.restorePerspective);
+		chain.addStage("backgroundDiff", ImageOperations.differenceWithBackground());
+		chain.addStage("blur", ImageOperations.medianBlur(5));
+		chain.addStage("threshold", ImageOperations.threshold(120));
+		chain.addStage("erode", ImageOperations.erode(3));
 		return chain;
 	}
-
-	public void run(VideoCapture videoCapture) {
-		try {
-			runAsync(videoCapture).get();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-		} catch (ExecutionException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	public CompletableFuture<?> runAsync(VideoCapture videoCapture) {
-		CompletableFuture<?> result = new CompletableFuture<>();
-		new Thread(() -> {
-			Mat frame = new Mat();
-			TargetFinder finder = new TargetFinder();
-			Mat p = new Mat();
-			while (videoCapture.read(frame) && !isClosed) {
-				frame.copyTo(p);
-				Optional<org.opencv.core.Point[]> target = finder.find(p);
-				if (target.isPresent()) {
-					System.out.println("Yep");
-					MatOfPoint matOfPoint = new MatOfPoint(target.get());
-					Core.polylines(frame, newArrayList(matOfPoint), true, new Scalar(255), 3);
-				}
-				accept(frame);
-			}
-			result.complete(null);
-		}).start();
-		return result;
-	}
-
 
 	public void addStage(String name, Consumer<Mat> stage) {
 		stages.add(new Named<>(name, i -> {
@@ -101,41 +60,18 @@ public class ProcessingChain implements Closeable {
 		stages.add(new Named<>(name, stage));
 	}
 
-	public void setListener(ProcessingListener listener) {
-		this.listener = listener;
-	}
-
-	public void accept(Mat frame) {
-		frameNo++;
-
-		if (listener != null) {
-			listener.onFrame(frame, stages.size());
-		}
-		if (originalFrameListener != null)
-			originalFrameListener.accept(frame);
+	public T apply(Mat frame, BiConsumer<String, Mat> listener) {
 		for (Named<Function<Mat, Mat>> stage : stages) {
 			frame = stage.get().apply(frame);
 			if (listener != null) {
-				listener.onStage(stage.getName(), frame);
-			}
-			if (targetFrameListener != null && "perspective".equals(stage.getName())) {
-				targetFrameListener.accept(frame);
+				listener.accept(stage.getName(), frame);
 			}
 		}
 
-		FrameFeatures features = extractFeatures(frameNo, frame);
-		if (listener != null) {
-			listener.onFrameComplete(features);
-		}
-
-		pointConsumer.accept(features.getCentroid().map(this::scaleToTarget));
+		return frameProcessor.apply(frame);
 	}
 
-	private Point scaleToTarget(Point point) {
-		return new Point((int) round(point.getX() / scaleRatio), (int) round(point.getY() / scaleRatio));
-	}
-
-	private FrameFeatures extractFeatures(int frameNo, Mat mat) {
+	private static FrameFeatures extractFeatures(int frameNo, Mat mat) {
 		MatOfPoint coordinates = new MatOfPoint();
 		findNonZero(mat, coordinates);
 
@@ -155,12 +91,4 @@ public class ProcessingChain implements Closeable {
 		return new FrameFeatures(frameNo, mat.size(), nonZero, (int) area, Optional.ofNullable(point));
 	}
 
-	public void updatePerspective(List<Point> points) {
-		restorePerspective.updatePerspective(points);
-	}
-
-	@Override
-	public void close() {
-		isClosed = true;
-	}
 }

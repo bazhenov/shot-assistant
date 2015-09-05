@@ -3,17 +3,17 @@ package me.bazhenov.shotassistant;
 import me.bazhenov.shotassistant.drills.Drill;
 import me.bazhenov.shotassistant.drills.FirstShotDrill;
 import me.bazhenov.shotassistant.target.IpscClassicalTarget;
+import me.bazhenov.shotassistant.ui.StagesComboBoxModel;
 import me.bazhenov.shotassistant.ui.StartDrillAction;
 import org.opencv.core.Core;
+import org.opencv.core.Mat;
 import org.opencv.highgui.VideoCapture;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
@@ -44,44 +44,6 @@ public class OpenCV {
 		runDrill(target, c, points, new FirstShotDrill());
 	}
 
-	private static void choosePerspective(IpscClassicalTarget target, VideoCapture c,
-																				Consumer<List<Point>> perspectiveConsumer) {
-		TargetFrameComponent targetFrameComponent = new TargetFrameComponent(target);
-		OpenCvVideoComponent originalFrameComponent = new OpenCvVideoComponent();
-		List<Point> perspectivePoints = newArrayList(
-			new Point(0, 0),
-			new Point(10, 0),
-			new Point(10, 10),
-			new Point(0, 10)
-		);
-		ProcessingChain chain = createProcessingChain(perspectivePoints, target, p -> {
-		});
-		chain.setTargetFrameListener(targetFrameComponent);
-		chain.setOriginalFrameListener(originalFrameComponent);
-
-		JFrame jframe = new JFrame();
-
-		jframe.setDefaultCloseOperation(EXIT_ON_CLOSE);
-		PerspectiveComponent perspectiveComponent = new PerspectiveComponent(originalFrameComponent, chain::updatePerspective);
-		jframe.add(perspectiveComponent);
-		jframe.add(targetFrameComponent);
-		jframe.add(new JButton(new AbstractAction("Start drill") {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				List<Point> perspectivePoints = perspectiveComponent.getPoints();
-				jframe.dispose();
-				chain.close();
-				perspectiveConsumer.accept(perspectivePoints);
-			}
-		}));
-
-		jframe.setLayout(new FlowLayout());
-		jframe.pack();
-		jframe.setVisible(true);
-
-		chain.run(c);
-	}
-
 	private static void runDrill(IpscClassicalTarget target, VideoCapture c, List<Point> perspectivePoints, Drill drill) {
 		//DrillLifecycle lifecycle = new DrillLifecycle(drill);
 		ShotDetector shotDetector = new ShotDetector(target, drill::onShot);
@@ -90,7 +52,6 @@ public class OpenCV {
 		//chain.setTargetFrameListener(targetFrameComponent);
 
 		MainFrameComponent comp = new MainFrameComponent();
-		chain.setOriginalFrameListener(comp);
 
 		JFrame jframe = new JFrame();
 
@@ -99,10 +60,35 @@ public class OpenCV {
 
 		jframe.add(new JButton(new StartDrillAction(drill)));
 
+		StagesComboBoxModel stagesModel = new StagesComboBoxModel();
+		jframe.add(new JComboBox<>(stagesModel));
+
 		jframe.setLayout(new FlowLayout());
 		jframe.pack();
 		jframe.setVisible(true);
 
-		chain.runAsync(c);
+		VideoProcessor processor = new VideoProcessor();
+
+		processor.setListener(new ProcessingListener() {
+			@Override
+			public void onStage(ProcessingChain<?> c, String name, Mat processingResult) {
+				stagesModel.addIfNeeded(c, name);
+				if (stagesModel.isValid(c, name))
+					comp.update(processingResult);
+			}
+
+			@Override
+			public void onFrame(Mat mat) {
+
+			}
+
+			@Override
+			public void onFrameComplete(Map<ProcessingChain<?>, Object> features) {
+
+			}
+		});
+
+		processor.addChain(chain);
+		processor.run(c);
 	}
 }

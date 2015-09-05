@@ -29,7 +29,9 @@ public class AcceptanceTest {
 		ShotDetector detector = new ShotDetector(target, scores::add);
 		ProcessingChain chain = createProcessingChain(info.getPerspectivePoints(), target, detector);
 
-		chain.run(new VideoCapture(fileName));
+		VideoProcessor processor = new VideoProcessor();
+		processor.addChain(chain);
+		processor.run(new VideoCapture(fileName));
 
 		assertThat(scores, equalTo(info.getScores()));
 	}

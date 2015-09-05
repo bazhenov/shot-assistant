@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -67,8 +68,11 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 
 		ExportDiagnosticFrames listener = new ExportDiagnosticFrames(new File("./export-result"), false);
 		listener.setRequiredFrames(parseIntervals(lines.get(0)));
-		chain.setListener(listener);
-		chain.run(c);
+
+		VideoProcessor processor = new VideoProcessor();
+		processor.setListener(listener);
+		processor.addChain(chain);
+		processor.run(c);
 	}
 
 	public static List<Point> parsePerspectivePoints(String s) {
@@ -98,7 +102,7 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 	}
 
 	@Override
-	public void onFrame(Mat mat, int stagesCount) {
+	public void onFrame(Mat mat) {
 		frameNo++;
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
@@ -129,7 +133,7 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 	}
 
 	@Override
-	public void onStage(String name, Mat processingResult) {
+	public void onStage(ProcessingChain<?> chain, String name, Mat processingResult) {
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
 
@@ -137,7 +141,10 @@ public class ExportDiagnosticFrames implements ProcessingListener {
 	}
 
 	@Override
-	public void onFrameComplete(FrameFeatures features) {
+	public void onFrameComplete(Map<ProcessingChain<?>, Object> map) {
+		FrameFeatures features = (FrameFeatures) map.values().stream()
+			.filter(i -> i instanceof FrameFeatures)
+			.findAny().get();
 		if (!requiredFrames.isEmpty() && !requiredFrames.contains(frameNo))
 			return;
 

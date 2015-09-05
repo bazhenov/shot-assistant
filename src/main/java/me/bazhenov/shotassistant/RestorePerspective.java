@@ -8,6 +8,7 @@ import java.awt.*;
 import java.util.List;
 import java.util.function.Function;
 
+import static java.lang.Math.round;
 import static me.bazhenov.shotassistant.VisualizingListener.toOpenCvPoint;
 import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
 import static org.opencv.imgproc.Imgproc.warpPerspective;
@@ -29,6 +30,10 @@ public class RestorePerspective implements Function<Mat, Mat> {
 
 		targetSize = new Size(size.getWidth() * scaleRatio, size.getHeight() * scaleRatio);
 		updatePerspective(points);
+	}
+
+	public Point scaleToTarget(Point point) {
+		return new Point((int) round(point.getX() / scaleRatio), (int) round(point.getY() / scaleRatio));
 	}
 
 	public void updatePerspective(List<Point> points) {
